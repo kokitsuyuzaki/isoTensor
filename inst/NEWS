@@ -1,3 +1,7 @@
 Changes in version 0.99.0 (2026-08-23)
 + Package released with the Phase 1 matrix model
   (population-level isoform deconvolution X ~ AB with fixed A)
++ Phase 2 tensor model (model="tensor"): individual-specific
+  cell-type-resolved isoform abundance via plain partial non-negative
+  Tucker decomposition, fitted by block multiplicative updates with
+  fixed A; warnings for generically non-identifiable rank regimes

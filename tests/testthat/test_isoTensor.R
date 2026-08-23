@@ -64,7 +64,7 @@ fit1 <- isoTensor(toy1$X, toy1$A, num.iter=1000, thr=1e-12)
 B_ls <- crossprod(toy1$A, toy1$X) / sum(toy1$A * toy1$A)
 expect_true(max(abs(fit1$B - B_ls)) < 1e-8)
 
-# model="tensor" is not implemented yet
+# model="tensor" without ranks is an error (see test_isoTensor_tensor.R)
 expect_error(isoTensor(toy$X, toy$A, model="tensor"))
 
 # Simulation 1 baseline: on tensor-generated data WITHOUT individual

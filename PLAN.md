@@ -73,10 +73,18 @@ provable-vs-simulation split of identifiability statements:
 `notes/tensor-simulation.md` and the "Parameter count and
 identifiability" section of `notes/tensor-model.md`.
 
-Gate: the simulation design and model note must be reviewed, and the
-small-grid recoverability results must justify the model, before MU
-derivation and fitting implementation start. Full simulation grids run
-in `isoTensor-experiments`, not here.
+Status (2026-08-23): identifiability verified
+(`notes/tensor-model.md`, `dev/identifiability_check.R`), MU derived
+(`notes/tensor-MU.md`) and minimally implemented
+(`isoTensor(model="tensor")`): gradient-checked, per-block monotone
+(Lee-Seung NNLS reduction), positive control (R_N < R_I) recovers the
+latent tensor on toy data, negative control (R_N >= R_I) shows good X
+fit with poor/unstable B — as the theory predicts. Non-error warnings
+flag the non-identifiable regimes.
+
+Next gates (not started): large simulation grids / recoverability maps
+(in `isoTensor-experiments`), rank selection, KL divergence, A
+uncertainty, Bioconductor submission prep.
 
 ## Phase 3 and beyond (tentative)
 
