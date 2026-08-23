@@ -61,9 +61,13 @@ scored against the ground truth.
 Hypothesis to test: if cell fractions barely vary across individuals,
 the information to separate the cell type direction is missing and
 recoverability degrades; sufficient variation plus shared low-rank
-structure should improve it. (The extreme case is provable: identical
-rows ⇒ the cell type axis is completely unidentified; see
-`notes/tensor-model.md` statement 1.)
+structure should improve it. Status after the identifiability
+verification (`notes/tensor-model.md` Theorems A–B): variation of A is
+**necessary but not sufficient** — identical rows are provably
+unrecoverable, but even maximal variation cannot rescue the
+$R_N \ge R_I$ regime with dense truth. So the simulation measures the
+quantitative effect of A-variation *within* the regimes where recovery
+is possible at all.
 
 Generation: rows of $A$ are $\mathrm{Dirichlet}(\alpha_0\, m)$ where
 $m$ (`A_mean`) is the mean composition and $\alpha_0$ the total
@@ -106,20 +110,36 @@ Axes to vary (full grid lives in `isoTensor-experiments`):
 seconds):
 
 - $N = 10\text{–}30$, $C = 2\text{–}3$, $I = 10\text{–}30$,
-  $R_N = 2$, $R_I = 2$, noise-free.
+  $R_N \in \{1, 2, 3\}$, $R_I \in \{1, 2, 3, 4\}$ (covering
+  $R_N < R_I$, $R_N = R_I$, $R_N > R_I$), noise-free.
 
-Two flags from the identifiability analysis
-(`notes/tensor-model.md` statements 2–3):
+Consequences of the verified identifiability analysis
+(`notes/tensor-model.md` Theorems A–C and §6; revised 2026-08-23 —
+the earlier "restrict mainly to $R_N < R_I$" guidance is replaced):
 
-- $R_N = R_I$ is a regime where sign-unconstrained recovery provably
-  fails; keep it in the grid *as the probe of what non-negativity
-  buys*, but add $R_N < R_I$ settings (e.g., $R_N=2$, $R_I=3, 4$) as
-  the primary recoverable regime.
-- The counting heuristic $N(R_I - R_N) \gtrsim R_N(C R_I - R_N)$
-  predicts a transition around $N \approx 14$ for
-  $(R_N, R_I, C) = (2, 3, 3)$ — the $N = 10\text{–}30$ range straddles
-  it deliberately; check whether the empirical transition tracks the
-  prediction.
+- **All three regimes $R_N < R_I$, $R_N = R_I$, $R_N > R_I$ are
+  tested** in the small grid. The recoverability boundary is explored
+  by simulation, not assumed.
+- **Dense (strictly positive) truth with $R_N \ge R_I$ is proven
+  unrecoverable** (Theorem A/A′ — even under non-negativity, at any
+  A-variation). These settings serve as **negative controls**: a
+  correct fitting pipeline must show large latent-tensor error and/or
+  multi-start dispersion at near-zero X-residual there. If it reports
+  "recovery", the pipeline (or the metric) is broken.
+- **Sparse ground-truth factors are the only mechanism** by which
+  non-negativity could rescue $R_N \ge R_I$ or sub-threshold $N$
+  (active constraints; Theorem A′ kills the interior case). Factor
+  sparsity (fraction of zero entries in $U$, $\mathcal{G}$, $W$)
+  therefore becomes a grid axis. The generator currently produces
+  dense factors; a sparsity argument will be added when the grid runs
+  start (until then construct sparse cases manually).
+- For $R_N < R_I$, sweep $N$ across the counting threshold
+  $N^* = \lceil R_N (C R_I - R_N)/(R_I - R_N) \rceil$ (NECESSARY
+  CONDITION, numerically exact in the local Jacobian analysis):
+  e.g., $(R_N,R_I,C) = (1,2,2)$: $N^*=3$; $(2,3,2)$: $N^*=8$;
+  $(2,3,3)$: $N^*=14$. The $N = 10\text{–}30$ range straddles the
+  latter deliberately; check whether *global/empirical* recovery
+  tracks the *local* boundary.
 
 ## 4. Evaluation metrics (for the future fitting step)
 

@@ -3,6 +3,7 @@
 ^\.gitignore$
 ^LICENSE\.md$
 ^PLAN\.md$
+^dev$
 ^notes$
 ^reports$
 ^README\.md$
