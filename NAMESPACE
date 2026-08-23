@@ -1,4 +1,4 @@
-importFrom(stats, runif, rnorm)
+importFrom(stats, runif, rnorm, rgamma, cor, var)
 
 export(
     isoTensor,

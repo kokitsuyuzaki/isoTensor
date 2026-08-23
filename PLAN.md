@@ -43,21 +43,40 @@ Possible follow-ups (not yet scheduled):
 - Isoform-group (per-gene) normalization or simplex constraints on B
 - Rank-free diagnostics: residual analysis per isoform / individual
 
-## Phase 2: Tensor model (design stage — DO NOT implement before review)
+## Phase 2: Tensor model (design stage — DO NOT implement fitting before review)
 
 Individual-specific cell-type-resolved isoform abundance:
 
     X_{ni} ≈ Σ_c A_{nc} B_{nci},   B ∈ R_+^{N x C x I}
 
 This is underdetermined (N·C·I parameters vs N·I observations), so a
-low-rank structure on B is required. Candidate structures (CP, full
-Tucker, partial Tucker, shared + deviation) are compared in
-`notes/tensor-model.md`. The current recommendation is a **partial
-non-negative Tucker decomposition that leaves the cell type mode
-uncompressed**, with the matrix model as its exact special case.
+low-rank structure on B is required. The current candidate is the
+**plain partial non-negative Tucker decomposition** with the cell type
+mode uncompressed:
 
-Gate: the model choice must be reviewed and approved before any Phase 2
-code is written.
+    B_nci = Σ_pq U_np G_pcq W_iq
+
+with no anchored/fixed components (the earlier "population component +
+non-negative deviation" anchoring was rejected — upward-only deviations;
+see "Rejected designs" in `notes/tensor-model.md`). `model="matrix"`
+and `model="tensor"` are two different models; they are compared
+outside the models (simple and A-weighted averages of B over
+individuals vs the matrix-model B).
+
+Before any fitting/MU code: study **recoverability of the latent
+tensor by simulation**. The ground-truth generator is implemented as
+`isoToyModel(model="tensor", ...)` (partial Tucker factors, Dirichlet
+cell fractions with variation controlled by a concentration dial,
+optional restriction of individual effects to specific cell types,
+noise in X, error in A). Design, grid, metrics, and the
+provable-vs-simulation split of identifiability statements:
+`notes/tensor-simulation.md` and the "Parameter count and
+identifiability" section of `notes/tensor-model.md`.
+
+Gate: the simulation design and model note must be reviewed, and the
+small-grid recoverability results must justify the model, before MU
+derivation and fitting implementation start. Full simulation grids run
+in `isoTensor-experiments`, not here.
 
 ## Phase 3 and beyond (tentative)
 

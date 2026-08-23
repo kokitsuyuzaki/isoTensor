@@ -67,6 +67,16 @@ expect_true(max(abs(fit1$B - B_ls)) < 1e-8)
 # model="tensor" is not implemented yet
 expect_error(isoTensor(toy$X, toy$A, model="tensor"))
 
+# Simulation 1 baseline: on tensor-generated data WITHOUT individual
+# effect, the matrix model recovers the shared slice B_ci exactly
+# (requires variation in A so that rank(A) = C)
+sim1 <- isoToyModel(model="tensor", N=20, C=3, I=20,
+    rank_individual=2, rank_isoform=2,
+    individual_effect=FALSE, A_variation="moderate", seed=1)
+set.seed(1)
+fit_sim1 <- isoTensor(sim1$X, sim1$A, num.iter=5000, thr=1e-15)
+expect_true(max(abs(fit_sim1$B - sim1$B[1, , ])) < 1e-6)
+
 # initB is respected
 set.seed(1234)
 fit_init <- isoTensor(toy$X, toy$A, initB=matrix(1, nrow=2, ncol=6),
