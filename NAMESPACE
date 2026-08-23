@@ -1,0 +1,6 @@
+importFrom(stats, runif, rnorm)
+
+export(
+    isoTensor,
+    isoToyModel
+)

@@ -1,0 +1,3 @@
+Changes in version 0.99.0 (2026-08-23)
++ Package released with the Phase 1 matrix model
+  (population-level isoform deconvolution X ~ AB with fixed A)

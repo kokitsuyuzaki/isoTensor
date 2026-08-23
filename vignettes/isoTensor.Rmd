@@ -1,0 +1,90 @@
+---
+title: "isoTensor: Cell-type-resolved isoform abundance estimation from bulk RNA-seq"
+author:
+- name: Koki Tsuyuzaki
+  email: k.t.the-answer@hotmail.co.jp
+date: "`r Sys.Date()`"
+package: isoTensor
+output: BiocStyle::html_document
+vignette: |
+  %\VignetteIndexEntry{isoTensor: Cell-type-resolved isoform abundance estimation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+# Introduction
+
+`isoTensor` estimates cell-type-resolved isoform abundance from bulk RNA-seq.
+It takes two inputs:
+
+- $X \in \mathbb{R}_+^{N \times I}$: a bulk isoform abundance matrix
+  (individual $\times$ isoform), and
+- $A \in \mathbb{R}_+^{N \times C}$: a cell type fraction matrix
+  (individual $\times$ cell type), estimated in advance by an external
+  reference-based deconvolution tool such as Bisque.
+
+Estimating the cell type fractions themselves is **not** the responsibility of
+`isoTensor`; $A$ is always treated as fixed. `isoTensor` estimates the
+population-level cell-type-by-isoform abundance matrix
+$B \in \mathbb{R}_+^{C \times I}$ under the model
+
+$$
+X \approx A B,
+\qquad
+\min_{B \geq 0} \frac{1}{2} \| X - A B \|_F^2,
+$$
+
+by the multiplicative update rule
+
+$$
+B \leftarrow B \odot
+\frac{A^\top X}{A^\top A B + \varepsilon}.
+$$
+
+# Toy data
+
+A small synthetic dataset with known ground truth is available from
+`isoToyModel`:
+
+```{r data, echo=TRUE}
+library("isoTensor")
+toy <- isoToyModel(N=5, C=2, I=6, seed=1234)
+str(toy)
+```
+
+Here `toy$X` is exactly `toy$A %*% toy$B`.
+
+# Fitting the matrix model
+
+```{r fit, echo=TRUE}
+set.seed(1234)
+fit <- isoTensor(toy$X, toy$A, model="matrix", num.iter=1000, thr=1e-12)
+```
+
+With noiseless data, the ground truth `B` is recovered almost exactly:
+
+```{r recovery, echo=TRUE}
+max(abs(fit$B - toy$B))
+```
+
+The reconstruction error monotonically decreases:
+
+```{r objective, echo=TRUE, fig.height=4, fig.width=4}
+plot(as.numeric(fit$RecError[-1]), type="l", log="y",
+    xlab="Iteration", ylab="||X - AB||_F")
+```
+
+# Noisy data
+
+```{r noisy, echo=TRUE}
+toy_noisy <- isoToyModel(N=5, C=2, I=6, noise=0.05, seed=42)
+set.seed(42)
+fit_noisy <- isoTensor(toy_noisy$X, toy_noisy$A, num.iter=1000, thr=1e-12)
+norm(fit_noisy$B - toy_noisy$B, "F") / norm(toy_noisy$B, "F")
+```
+
+# Session Information {.unnumbered}
+
+```{r sessionInfo, echo=FALSE}
+sessionInfo()
+```

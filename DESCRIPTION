@@ -1,0 +1,32 @@
+Package: isoTensor
+Type: Package
+Title: Cell-Type-Resolved Isoform Abundance Estimation from Bulk RNA-seq
+Version: 0.99.0
+Authors@R: person("Koki", "Tsuyuzaki", role = c("aut", "cre"),
+    email = "k.t.the-answer@hotmail.co.jp")
+Depends:
+    R (>= 4.3.0)
+Imports:
+    stats
+Suggests:
+    testthat,
+    knitr,
+    rmarkdown,
+    BiocStyle
+Description: isoTensor estimates cell-type-resolved isoform abundance from
+    bulk RNA-seq isoform abundance and externally estimated cell type
+    fractions. Given a non-negative individual-by-isoform matrix X and a
+    non-negative individual-by-cell-type fraction matrix A (estimated by
+    reference-based deconvolution tools such as Bisque and kept fixed),
+    isoTensor solves the non-negative least squares problem X ~ AB by
+    multiplicative updates to obtain the population-level cell-type-by-isoform
+    matrix B. Individual-specific cell-type-resolved isoform abundance
+    based on non-negative tensor decomposition will be provided in a
+    future release.
+License: MIT + file LICENSE
+URL: https://github.com/kokitsuyuzaki/isoTensor
+BugReports: https://github.com/kokitsuyuzaki/isoTensor/issues
+biocViews: Software, GeneExpression, Transcriptomics, RNASeq,
+    AlternativeSplicing, Regression, CellBiology
+VignetteBuilder: knitr
+Encoding: UTF-8
