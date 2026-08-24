@@ -82,9 +82,22 @@ latent tensor on toy data, negative control (R_N >= R_I) shows good X
 fit with poor/unstable B — as the theory predicts. Non-error warnings
 flag the non-identifiable regimes.
 
-Next gates (not started): large simulation grids / recoverability maps
-(in `isoTensor-experiments`), rank selection, KL divergence, A
-uncertainty, Bioconductor submission prep.
+Status (2026-08-24): optimizer calibration, the full recoverability
+grid and the realistic-noise stress test were run in
+`isoTensor-experiments`; the log-reparameterized L-BFGS optimizer
+validated there was ported into the package
+(`optimizer = c("lbfgs", "hybrid", "mu")`, default "lbfgs";
+`notes/tensor-LBFGS.md`, port verified numerically in
+`dev/lbfgs_port_check.R`). MU is kept as the provably monotone
+baseline. The thr=0 sentinel edge case found by the experiments was
+fixed. `algorithm` (objective; currently Frobenius only) and
+`optimizer` (method) are kept conceptually separate for future
+KL / beta-divergence objectives.
+
+Next gates (not started): rank selection, KL divergence, A
+uncertainty / spillover handling, multi-start package API,
+Bioconductor submission prep. Real-data analyses stay in
+`isoTensor-experiments`.
 
 ## Phase 3 and beyond (tentative)
 

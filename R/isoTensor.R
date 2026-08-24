@@ -1,16 +1,30 @@
 isoTensor <- function(X, A, model=c("matrix", "tensor"),
     rank_individual=NULL, rank_isoform=NULL,
+    optimizer=c("lbfgs", "hybrid", "mu"),
     initB=NULL, initU=NULL, initG=NULL, initW=NULL,
     pseudocount=.Machine$double.eps,
-    thr=1e-10, num.iter=100, verbose=FALSE){
+    thr=1e-10, num.iter=100,
+    optimizer.control=list(), verbose=FALSE){
     # Argument check
     model <- match.arg(model)
+    optimizer_given <- !missing(optimizer)
+    optimizer <- match.arg(optimizer)
     .checkIsoTensor(X, A, initB, pseudocount, thr, num.iter, verbose)
     if(model == "tensor"){
         .checkIsoTensorTensor(X, A, rank_individual, rank_isoform,
             initU, initG, initW)
-        return(.eachIsoTensorTensor(X, A, rank_individual, rank_isoform,
-            initU, initG, initW, pseudocount, thr, num.iter, verbose))
+        ctrl <- .checkOptimizerControl(optimizer, optimizer.control)
+        if(optimizer == "mu"){
+            return(.eachIsoTensorTensor(X, A, rank_individual, rank_isoform,
+                initU, initG, initW, pseudocount, thr, num.iter, verbose))
+        }
+        return(.eachIsoTensorTensorLBFGS(X, A, rank_individual, rank_isoform,
+            initU, initG, initW, optimizer, pseudocount, thr, num.iter,
+            ctrl$maxit, ctrl$factr, verbose))
+    }
+    if(optimizer_given){
+        warning(paste("optimizer is ignored for model='matrix'",
+            "(the matrix model is always fitted by multiplicative updates)"))
     }
     # model="matrix": initialization of B
     int <- .initIsoTensor(X, A, initB)
@@ -20,7 +34,8 @@ isoTensor <- function(X, A, model=c("matrix", "tensor"),
     RecError <- c()
     RelChange <- c()
     RecError[1] <- .recError(X, A %*% B)
-    RelChange[1] <- thr * 10
+    # sentinel kept strictly positive so that thr=0 still enters the loop
+    RelChange[1] <- max(thr * 10, .Machine$double.xmin)
     # Iterative step
     iter <- 1
     while ((RelChange[iter] > thr) && (iter <= num.iter)) {
@@ -321,7 +336,8 @@ isoTensor <- function(X, A, model=c("matrix", "tensor"),
     RecError <- c()
     RelChange <- c()
     RecError[1] <- .recError(X, .XhatTensor(A, U, G, W))
-    RelChange[1] <- thr * 10
+    # sentinel kept strictly positive so that thr=0 still enters the loop
+    RelChange[1] <- max(thr * 10, .Machine$double.xmin)
     iter <- 1
     while ((RelChange[iter] > thr) && (iter <= num.iter)) {
         pre_Error <- RecError[iter]
@@ -355,9 +371,182 @@ isoTensor <- function(X, A, model=c("matrix", "tensor"),
     list(U = U, G = G, W = W,
         B = .recTensorPartialTucker(U, G, W),
         Xhat = .XhatTensor(A, U, G, W),
-        model = "tensor", algorithm = "Frobenius",
+        model = "tensor", algorithm = "Frobenius", optimizer = "mu",
         rank_individual = R_N, rank_isoform = R_I,
+        objective = 0.5 * RecError[iter]^2,
         RecError = RecError, RelChange = RelChange,
         NumIter = iter - 1,
         Converged = (RelChange[iter] <= thr))
+}
+
+## ---- optimizer="lbfgs" / "hybrid": log-reparameterized L-BFGS ----------
+## Port of the implementation validated in the isoTensor-experiments
+## repository (src/lbfgs_utils.R); derivation and port notes:
+## notes/tensor-LBFGS.md. U = exp(Theta_U) etc. removes the non-negativity
+## constraints; gradients are the analytical ones of .gradIsoTensor times
+## the factors (chain rule).
+
+# theta = (vec(log U), vec(log G), vec(log W)); zeros raised to eps
+# before the log (see notes/tensor-LBFGS.md section 4)
+.packThetaTensor <- function(U, G, W, eps=1e-10){
+    c(log(pmax(as.vector(U), eps)),
+      log(pmax(as.vector(G), eps)),
+      log(pmax(as.vector(W), eps)))
+}
+
+.unpackThetaTensor <- function(theta, N, I, C, R_N, R_I){
+    nU <- N * R_N
+    nG <- R_N * C * R_I
+    nW <- I * R_I
+    list(U = matrix(exp(theta[seq_len(nU)]), nrow = N, ncol = R_N),
+         G = array(exp(theta[nU + seq_len(nG)]), dim = c(R_N, C, R_I)),
+         W = matrix(exp(theta[nU + nG + seq_len(nW)]), nrow = I, ncol = R_I))
+}
+
+# One L-BFGS run in theta; optim failures are caught (see
+# notes/tensor-LBFGS.md section 5) and reported via failed=TRUE
+.lbfgsIsoTensor <- function(X, A, R_N, R_I, U0, G0, W0, maxit, factr){
+    N <- nrow(X)
+    I <- ncol(X)
+    C <- ncol(A)
+    fn <- function(theta){
+        p <- .unpackThetaTensor(theta, N, I, C, R_N, R_I)
+        .objIsoTensor(X, A, p$U, p$G, p$W)
+    }
+    gr <- function(theta){
+        p <- .unpackThetaTensor(theta, N, I, C, R_N, R_I)
+        g <- .gradIsoTensor(X, A, p$U, p$G, p$W)
+        c(as.vector(g$U * p$U), as.vector(g$G * p$G), as.vector(g$W * p$W))
+    }
+    theta0 <- .packThetaTensor(U0, G0, W0)
+    opt <- tryCatch(
+        optim(theta0, fn, gr, method = "L-BFGS-B",
+            control = list(maxit = maxit, factr = factr)),
+        error = function(e) e)
+    if(inherits(opt, "error")){
+        return(list(par = theta0, failed = TRUE,
+            convergence = 99L, message = conditionMessage(opt),
+            counts = c("function" = NA_integer_, gradient = NA_integer_)))
+    }
+    list(par = opt$par, failed = FALSE,
+        convergence = opt$convergence,
+        message = if(is.null(opt$message)) "" else opt$message,
+        counts = opt$counts)
+}
+
+.checkOptimizerControl <- function(optimizer, optimizer.control){
+    stopifnot(is.list(optimizer.control))
+    if(optimizer == "mu"){
+        if(length(optimizer.control) > 0){
+            warning("optimizer.control is ignored for optimizer='mu'")
+        }
+        return(list())
+    }
+    # defaults = settings validated in isoTensor-experiments
+    # (optimizer calibration / full recoverability grid)
+    ctrl <- list(maxit = 5000, factr = 10)
+    if(length(optimizer.control) > 0){
+        bad <- setdiff(names(optimizer.control), names(ctrl))
+        if(length(bad) > 0 || is.null(names(optimizer.control))){
+            stop("optimizer.control accepts only: ",
+                paste(names(ctrl), collapse = ", "))
+        }
+        ctrl[names(optimizer.control)] <- optimizer.control
+    }
+    stopifnot(is.numeric(ctrl$maxit), length(ctrl$maxit) == 1,
+        ctrl$maxit >= 1)
+    stopifnot(is.numeric(ctrl$factr), length(ctrl$factr) == 1,
+        ctrl$factr > 0)
+    ctrl
+}
+
+.eachIsoTensorTensorLBFGS <- function(X, A, R_N, R_I, initU, initG, initW,
+    optimizer, pseudocount, thr, num.iter, maxit, factr, verbose){
+    N <- nrow(X)
+    I <- ncol(X)
+    C <- ncol(A)
+    fitmu <- NULL
+    if(optimizer == "hybrid"){
+        # Stage 1: the unchanged MU loop (num.iter / thr keep their meaning)
+        fitmu <- .eachIsoTensorTensor(X, A, R_N, R_I, initU, initG, initW,
+            pseudocount, thr, num.iter, verbose)
+        U0 <- fitmu$U
+        G0 <- fitmu$G
+        W0 <- fitmu$W
+    }else{
+        # Same init distribution and draw order as the MU path; no global
+        # rescaling here, to stay numerically identical to the validated
+        # experiments implementation (notes/tensor-LBFGS.md section 6)
+        if(is.null(initU)){
+            U0 <- matrix(runif(N * R_N, 0.5, 1.5), nrow = N, ncol = R_N)
+        }else{
+            U0 <- initU
+        }
+        if(is.null(initG)){
+            G0 <- array(runif(R_N * C * R_I, 0.5, 1.5), dim = c(R_N, C, R_I))
+        }else{
+            G0 <- initG
+        }
+        if(is.null(initW)){
+            W0 <- matrix(runif(I * R_I, 0.5, 1.5), nrow = I, ncol = R_I)
+        }else{
+            W0 <- initW
+        }
+    }
+    rec0 <- .recError(X, .XhatTensor(A, U0, G0, W0))
+    res <- .lbfgsIsoTensor(X, A, R_N, R_I, U0, G0, W0, maxit, factr)
+    if(res$failed && optimizer == "lbfgs"){
+        stop("L-BFGS-B failed: ", res$message,
+            " Try a different random seed, optimizer='hybrid', ",
+            "or optimizer='mu'.")
+    }
+    if(res$failed){
+        warning("L-BFGS-B refinement failed (", res$message,
+            "); returning the MU-stage solution")
+        U <- U0
+        G <- G0
+        W <- W0
+    }else{
+        p <- .unpackThetaTensor(res$par, N, I, C, R_N, R_I)
+        U <- p$U
+        G <- p$G
+        W <- p$W
+    }
+    # Scale absorption only AFTER the optimization (B and Xhat invariant;
+    # never inside optim, which would break gradient consistency)
+    nrm <- .normalizeFactorsTensor(U, G, W)
+    U <- nrm$U
+    G <- nrm$G
+    W <- nrm$W
+    Xhat <- .XhatTensor(A, U, G, W)
+    rec_final <- .recError(X, Xhat)
+    if(optimizer == "hybrid"){
+        RecError <- c(fitmu$RecError, rec_final)
+        names(RecError) <- c(names(fitmu$RecError), "refined")
+    }else{
+        RecError <- c(rec0, rec_final)
+        names(RecError) <- c("offset", "final")
+    }
+    if(verbose){
+        cat(paste0("L-BFGS-B: convergence = ", res$convergence,
+            ", ||X - Xhat||_F = ", rec_final, "\n"))
+    }
+    out <- list(U = U, G = G, W = W,
+        B = .recTensorPartialTucker(U, G, W),
+        Xhat = Xhat,
+        model = "tensor", algorithm = "Frobenius", optimizer = optimizer,
+        rank_individual = R_N, rank_isoform = R_I,
+        objective = 0.5 * rec_final^2,
+        RecError = RecError,
+        lbfgs = list(convergence = res$convergence,
+            message = res$message, counts = res$counts,
+            maxit = maxit, factr = factr, failed = res$failed))
+    if(optimizer == "hybrid"){
+        # MU-stage histories (they describe stage 1 only; no fake values
+        # are fabricated for the L-BFGS stage)
+        out$RelChange <- fitmu$RelChange
+        out$NumIter <- fitmu$NumIter
+        out$Converged <- fitmu$Converged
+    }
+    out
 }

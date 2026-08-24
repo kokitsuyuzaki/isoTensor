@@ -4,6 +4,16 @@ Derivation note (written BEFORE the implementation, 2026-08-23).
 Model and identifiability: `notes/tensor-model.md`. Simulation design:
 `notes/tensor-simulation.md`.
 
+Update 2026-08-24: MU is no longer the default optimizer for
+`model="tensor"`. The isoTensor-experiments benchmarks showed that MU
+often stalls in poor basins (zero-locking) while a log-reparameterized
+L-BFGS on the same objective and gradients is faster and far more
+accurate; that optimizer is now the default (`optimizer="lbfgs"`,
+derivation and port notes: `notes/tensor-LBFGS.md`). MU remains
+available as `optimizer="mu"` — it is the variant with a PROVED
+monotone objective (section 4) and stays the debugging / comparison
+baseline.
+
 ## 1. Objective and reconstruction
 
 Data $X \in \mathbb{R}_+^{N \times I}$, fixed

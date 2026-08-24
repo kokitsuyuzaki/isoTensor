@@ -3,16 +3,18 @@ toy <- isoToyModel(model="tensor", N=20, C=2, I=20,
     individual_effect=TRUE, A_variation="high", seed=10)
 
 set.seed(10)
-fit <- isoTensor(toy$X, toy$A, model="tensor",
+fit <- isoTensor(toy$X, toy$A, model="tensor", optimizer="mu",
     rank_individual=1, rank_isoform=2, num.iter=1500, thr=1e-12)
 
 # Output structure
 expect_true(is.list(fit))
 expect_equivalent(names(fit),
-    c("U", "G", "W", "B", "Xhat", "model", "algorithm",
-      "rank_individual", "rank_isoform",
+    c("U", "G", "W", "B", "Xhat", "model", "algorithm", "optimizer",
+      "rank_individual", "rank_isoform", "objective",
       "RecError", "RelChange", "NumIter", "Converged"))
 expect_equivalent(fit$model, "tensor")
+expect_equivalent(fit$optimizer, "mu")
+expect_equal(fit$objective, 0.5 * tail(fit$RecError, 1)^2)
 expect_equivalent(fit$rank_individual, 1)
 expect_equivalent(fit$rank_isoform, 2)
 expect_true(is.numeric(fit$NumIter))
@@ -34,7 +36,7 @@ expect_true(min(fit$Xhat) >= 0)
 
 # Fixed seed reproducibility
 set.seed(10)
-fit2 <- isoTensor(toy$X, toy$A, model="tensor",
+fit2 <- isoTensor(toy$X, toy$A, model="tensor", optimizer="mu",
     rank_individual=1, rank_isoform=2, num.iter=1500, thr=1e-12)
 expect_identical(fit$B, fit2$B)
 
@@ -50,9 +52,20 @@ expect_true(relerr(fit$B, toy$B) < 0.05)
 # A is unchanged after fitting
 A_copy <- toy$A + 0
 set.seed(10)
-invisible(isoTensor(toy$X, toy$A, model="tensor",
+invisible(isoTensor(toy$X, toy$A, model="tensor", optimizer="mu",
     rank_individual=1, rank_isoform=2, num.iter=5))
 expect_identical(toy$A, A_copy)
+
+# thr=0 is a valid edge case: the sentinel stays positive, so exactly
+# num.iter MU iterations are performed
+set.seed(10)
+fit_thr0 <- isoTensor(toy$X, toy$A, model="tensor", optimizer="mu",
+    rank_individual=1, rank_isoform=2, num.iter=5, thr=0)
+expect_equivalent(fit_thr0$NumIter, 5)
+set.seed(1234)
+toy_m0 <- isoToyModel(N=5, C=2, I=6, seed=1234)
+fit_m0 <- isoTensor(toy_m0$X, toy_m0$A, model="matrix", num.iter=5, thr=0)
+expect_equivalent(length(fit_m0$RecError), 6)
 
 # Analytical gradient vs central finite differences (small config)
 set.seed(123)
@@ -118,14 +131,14 @@ expect_error(isoTensor(toy$X, toy$A, model="tensor",
 # R_N >= R_I is NOT an error: it is a generically non-identifiable
 # regime for the latent B, flagged by a warning
 expect_warning(
-    isoTensor(toy$X, toy$A, model="tensor",
+    isoTensor(toy$X, toy$A, model="tensor", optimizer="mu",
         rank_individual=2, rank_isoform=2, num.iter=2),
     "non-identifiable")
 # N below the Theorem C threshold N* is also warned
 toy_small <- isoToyModel(model="tensor", N=5, C=3, I=12,
     rank_individual=2, rank_isoform=3, A_variation="high", seed=3)
 expect_warning(
-    isoTensor(toy_small$X, toy_small$A, model="tensor",
+    isoTensor(toy_small$X, toy_small$A, model="tensor", optimizer="mu",
         rank_individual=2, rank_isoform=3, num.iter=2),
     "threshold")
 
@@ -145,3 +158,9 @@ fit_m2 <- isoTensor(toy_m$X, toy_m$A, model="matrix",
 expect_identical(fit_m1$B, fit_m2$B)
 expect_equivalent(names(fit_m1),
     c("B", "model", "algorithm", "RecError", "RelChange"))
+
+# Explicitly supplied optimizer is ignored (with a warning) in matrix mode
+expect_warning(
+    isoTensor(toy_m$X, toy_m$A, model="matrix", optimizer="lbfgs",
+        num.iter=10),
+    "ignored")

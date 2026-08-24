@@ -83,6 +83,46 @@ fit_noisy <- isoTensor(toy_noisy$X, toy_noisy$A, num.iter=1000, thr=1e-12)
 norm(fit_noisy$B - toy_noisy$B, "F") / norm(toy_noisy$B, "F")
 ```
 
+# The individual-specific tensor model
+
+With `model="tensor"`, `isoTensor` estimates an individual-specific
+latent tensor $B \in \mathbb{R}_+^{N \times C \times I}$ under the
+partial non-negative Tucker structure
+
+$$
+B_{nci} = \sum_{p,q} U_{np}\, G_{pcq}\, W_{iq},
+\qquad
+X_{ni} \approx \sum_c A_{nc} B_{nci},
+$$
+
+where the cell type mode is not compressed and $A$ stays fixed. The
+ranks of the individual mode ($R_N$ = `rank_individual`) and the
+isoform mode ($R_I$ = `rank_isoform`) must be specified; the regime
+$R_N \geq R_I$ is generically non-identifiable for $B$ and is flagged
+by a warning (see `notes/tensor-model.md` in the GitHub repository).
+
+Three optimizers minimize the same Frobenius objective. The default,
+`optimizer="lbfgs"`, removes the non-negativity constraints by the log
+reparameterization $U = \exp(\Theta_U)$ (and likewise for $G$, $W$) and
+runs L-BFGS with analytical gradients; in synthetic benchmarks it is
+several times faster than the multiplicative updates and recovers the
+latent tensor substantially more accurately. `optimizer="mu"` is the
+multiplicative-update baseline with a provably non-increasing
+objective, and `optimizer="hybrid"` refines the MU solution with
+L-BFGS.
+
+```{r tensor, echo=TRUE}
+tt <- isoToyModel(model="tensor", N=20, C=2, I=20,
+    rank_individual=1, rank_isoform=2, A_variation="high", seed=10)
+set.seed(10)
+fit_t <- isoTensor(tt$X, tt$A, model="tensor",
+    rank_individual=1, rank_isoform=2, optimizer="lbfgs")
+# relative recovery error of the latent tensor
+sqrt(sum((fit_t$B - tt$B)^2)) / sqrt(sum(tt$B^2))
+fit_t$objective
+fit_t$lbfgs$convergence
+```
+
 # Session Information {.unnumbered}
 
 ```{r sessionInfo, echo=FALSE}

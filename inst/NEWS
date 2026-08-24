@@ -5,3 +5,13 @@ Changes in version 0.99.0 (2026-08-23)
   cell-type-resolved isoform abundance via plain partial non-negative
   Tucker decomposition, fitted by block multiplicative updates with
   fixed A; warnings for generically non-identifiable rank regimes
++ Tensor-mode optimizer argument (optimizer = "lbfgs" / "hybrid" /
+  "mu"): log-reparameterized L-BFGS with analytical gradients as the
+  new default (port of the implementation validated in the
+  isoTensor-experiments benchmarks; faster and substantially more
+  accurate latent-tensor recovery than MU), MU kept as the monotone
+  baseline, hybrid = MU then L-BFGS refinement; L-BFGS controls via
+  optimizer.control = list(maxit, factr)
++ Fixed the thr=0 edge case: the initial RelChange sentinel is now
+  kept strictly positive, so thr=0 runs all num.iter iterations
+  instead of none
