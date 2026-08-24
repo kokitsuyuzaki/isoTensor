@@ -56,6 +56,24 @@ fit$B          # individual x cell type x isoform latent tensor
 fit$objective  # final 1/2 ||X - Xhat||_F^2
 ```
 
+## Limitations
+
+- The tensor mode rests on strong structural assumptions (low-rank partial
+  Tucker with the cell type mode uncompressed, fixed `A`).
+- For `rank_individual >= rank_isoform` the latent tensor is generically
+  non-identifiable under the current dense model (a warning is raised);
+  `rank_individual < rank_isoform` avoids that proved condition but does
+  not by itself guarantee identifiability.
+- Good reconstruction of `X` does not guarantee recovery of the latent
+  tensor `B` — evaluate both.
+- Individual-level tensor estimates can be highly sensitive to isoform
+  measurement noise and to a poorly conditioned or low-variation `A`
+  (rare cell types are especially unstable); see the recoverability and
+  noise studies in the sibling `isoTensor-experiments` repository
+  (`reports/FINAL_SUMMARY.md`).
+- The matrix mode is the safer population-level option and is equivalent
+  to per-isoform NNLS.
+
 ## License
 
 MIT (see `LICENSE.md`).
